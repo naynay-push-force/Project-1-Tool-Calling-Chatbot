@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 from typing import List, Dict, Any, Optional
@@ -7,12 +8,23 @@ from .tools.registry import registry
 
 class LLMClient:
     def __init__(self, config: Config):
-        self.client = AsyncOpenAI(api_key=config.openai_api_key)
         self.config = config
         self.conversation_history: List[Dict[str, Any]] = []
+
+        # Mock mode: lets the CLT run without any API access
+        self.mock_mode = (self.config.model_name or "").lower() == "mock"
+
+        if not self.mock_mode:
+            self.client = AsyncOpenAI(api_key=config.openai_api_key)
+        else:
+            self.client = None
     
     async def chat(self, message: str) -> str:
         """Send a message and get a response, handling function calls"""
+
+        if self.mock_mode:
+            return await self._mock_chat(message)
+        
         # Add user message to history
         self.conversation_history.append({
             "role": "user",
@@ -79,3 +91,44 @@ class LLMClient:
                     "name": tool_name,
                     "content": json.dumps({"error": str(e)})
                 })
+
+    async def _mock_chat(self, message: str) -> str:
+        """
+        Offline mode (no OpenAI). Supports manual tool execution:
+        /tool <tool_name> <json_args>
+
+        Example:
+        /tool calculator {"expression": "2+2"}
+        """
+        self.conversation_history.append({"role": "user", "content": message})
+
+        # Manual tool execution
+        if message.strip().startswith("/tool "):
+            parts = message.strip().split(" ", 2)
+            if len(parts) < 2:
+                return "Usage: /tool <tool_name> <json_args>"
+
+            tool_name = parts[1]
+            raw_args = parts[2] if len(parts) == 3 else "{}"
+
+            try:
+                args = json.loads(raw_args)
+            except json.JSONDecodeError as e:
+                return f"Invalid JSON args. Example: /tool {tool_name} {{\"x\": 1}}. Error: {e}"
+
+            try:
+                tool = registry.get_tool(tool_name)
+                result = await tool.execute(**args)
+                return f"[MOCK] Tool '{tool_name}' executed.\nResult: {result.model_dump()}"
+            except Exception as e:
+                return f"[MOCK] Tool '{tool_name}' failed: {e}"
+
+        # Normal chat fallback in mock mode
+        tools = registry.list_tools()
+        tool_list = ", ".join(tools) if tools else "(no tools registered)"
+        return (
+            "[MOCK MODE]\n"
+            f"Tools available: {tool_list}\n"
+            "To run one: /tool <tool_name> <json_args>\n"
+            'Example: /tool calculate {"expression":"2+2"}'
+        )

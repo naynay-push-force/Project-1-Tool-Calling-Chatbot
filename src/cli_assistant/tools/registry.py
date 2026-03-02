@@ -23,5 +23,5 @@ class ToolRegistry:
         """Get all tools formatted for OpenAI API"""
         return [tool.to_openai_function() for tool in self._tools.values()]
 
-# Global registry instance
+# Global registry instance (singleton)
 registry = ToolRegistry()

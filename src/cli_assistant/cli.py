@@ -35,14 +35,18 @@ class CLIAssistant:
                 if user_input.lower() in ['/quit', '/exit']:
                     print("Goodbye! 👋")
                     break
+
+                # Format user message
+                self.ui.format_user_message(user_input)
                 
                 if user_input.lower() == '/help':
                     self._show_help()
                     continue
-                
-                # Format user message
-                self.ui.format_user_message(user_input)
-                
+
+                if user_input.lower() == '/tools':
+                    self._show_tools()
+                    continue
+                               
                 # Get and format assistant response
                 response = await self.llm_client.chat(user_input)
                 self.ui.format_assistant_message(response)
@@ -54,15 +58,21 @@ class CLIAssistant:
                 self.ui.format_error(str(e))
     
     def _show_help(self):
-        """Show available tools and commands"""
+        """
+        Show available tools and commands.
+        """
         tools = registry.list_tools()
         help_text = f"""Available tools: {', '.join(tools)}
-
-Commands:
-- /help - Show this help
-- /quit - Exit the application
+        Commands:
+        - /help - Show this help
+        - /quit - Exit the application
         """
-        console.print(help_text)
+        self.ui.format_assistant_message(help_text)
+
+    def _show_tools(self):
+        tools = registry.list_tools()
+        lines = [f"**{name}**: {registry.get_tool(name).description}" for name in tools]
+        self.ui.format_assistant_message("\n\n".join(lines))
 
 def main():
     """Entry point for the CLI application"""

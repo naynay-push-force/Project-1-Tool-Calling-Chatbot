@@ -26,7 +26,7 @@ class WeatherTool(BaseTool):
         }
     
     async def execute(self, location: str) -> ToolResult:
-        # Mock implementation - in reality, you'd call a weather API
+        # Mock implementation - in reality, call a weather API
         return ToolResult(
             success=True,
             result={
